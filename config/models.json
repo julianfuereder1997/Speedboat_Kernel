@@ -1,0 +1,7 @@
+{
+  "models": {
+    "frontier": { "model": "claude-opus-5-5", "effort": "high", "max_tokens": 16000 },
+    "default": { "model": "claude-sonnet-5", "effort": "medium", "max_tokens": 16000 }
+  },
+  "refusal_fallback": { "enabled": false }
+}

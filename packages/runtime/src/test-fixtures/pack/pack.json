@@ -1,0 +1,91 @@
+{
+  "pack": "runtime-fixture",
+  "version": "1.0.0",
+  "object_types": {
+    "source": {
+      "schema": {
+        "type": "object",
+        "required": ["text"],
+        "properties": { "text": { "type": "string" } },
+        "additionalProperties": false
+      },
+      "write_roles": ["editor"],
+      "requires_provenance": true
+    },
+    "item": {
+      "schema": {
+        "type": "object",
+        "required": ["label", "reason"],
+        "properties": { "label": { "type": "string", "minLength": 1 }, "reason": { "type": "string" } },
+        "additionalProperties": false
+      },
+      "write_roles": ["writer"]
+    }
+  },
+  "blocks": [
+    {
+      "block": "propose",
+      "type": "generate",
+      "input": ["/objects/source"],
+      "output_schema": {
+        "type": "object",
+        "required": ["items"],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["label", "reason"],
+              "properties": { "label": { "type": "string" }, "reason": { "type": "string" } }
+            }
+          }
+        }
+      },
+      "isolation": "shared",
+      "skill": "skills/propose.md",
+      "model_hint": "default",
+      "actor_roles": ["writer"],
+      "writes": { "object_type": "item", "items": "/items", "provenance": "GENERATED" }
+    },
+    {
+      "block": "review",
+      "type": "critic",
+      "input": ["/objects/source", "/objects/item/*/label"],
+      "output_schema": {
+        "type": "object",
+        "required": ["findings"],
+        "properties": {
+          "findings": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["marker", "target"],
+              "properties": { "marker": { "type": "string" }, "target": { "type": "string" }, "note": { "type": "string" } }
+            }
+          }
+        }
+      },
+      "markers": ["vague", "duplicate"],
+      "bias": "strict",
+      "isolation": "fresh_context",
+      "skill": "skills/review.md",
+      "model_hint": "frontier"
+    },
+    {
+      "block": "lint",
+      "type": "validate",
+      "input": ["/objects/item"],
+      "output_schema": { "type": "object", "required": ["passed"], "properties": { "passed": { "type": "boolean" } } },
+      "isolation": "shared"
+    }
+  ],
+  "dependencies": { "propose": [], "review": ["propose"], "lint": ["propose"] },
+  "gates": { "g": { "requires": ["propose", "review"], "checks": ["lint"], "decisions": ["ok"] } },
+  "bias_profiles": { "strict": { "perspective": "An outside reader with no context." } },
+  "markers": [
+    { "id": "vague", "description": "The label says little." },
+    { "id": "duplicate", "description": "Another item says the same." }
+  ],
+  "roles": ["editor", "writer", "reviewer"],
+  "provenance_values": ["USER", "GENERATED"]
+}

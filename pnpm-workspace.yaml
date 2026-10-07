@@ -2,3 +2,7 @@ packages:
   - packages/*
   - packs/*
   - tests
+  - scripts
+allowBuilds:
+  # Die Binärdatei kommt über @esbuild/<plattform>; kein Build-Skript nötig.
+  esbuild: false

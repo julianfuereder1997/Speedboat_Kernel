@@ -18,3 +18,5 @@ export type { SaveResult, StateAdapter } from "./state-port.js";
 export { validate_pack, type PackIssue, type PackValidation } from "./validate-pack.js";
 export { assertValidated, load_pack, type LoadPackResult, type ValidatedPack } from "./validated-pack.js";
 export { next_allowed_steps, type AllowedGate, type AllowedSteps } from "./steps.js";
+export { expand, formatPointer, getAt, overlaps, parsePointer } from "./pointer.js";
+export { missingDependencies } from "./dependencies.js";

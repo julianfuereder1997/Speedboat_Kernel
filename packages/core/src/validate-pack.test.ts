@@ -13,7 +13,7 @@ function variant(edit: (p: PackInput & Record<string, any>) => void): unknown {
 const codes = (issues: PackIssue[]) => issues.map((i) => i.code);
 const block = (name: string) => ({
   block: name,
-  type: "generate" as const,
+  type: "validate" as const,
   input: [],
   output_schema: { type: "object" },
   isolation: "shared" as const,
@@ -195,6 +195,45 @@ describe("validate_pack: Fehler", () => {
 
   it("bei Pflicht-Provenienz ohne definierte Provenienz-Werte", () => {
     expect(codes(errorsOf(variant((p) => void (p.provenance_values = []))))).toContain("NO_PROVENANCE_VALUES");
+  });
+
+  it("bei Modell-Baustein ohne Skill-Text", () => {
+    expect(errorsOf(variant((p) => void delete p.blocks[0]!.skill))).toContainEqual(
+      expect.objectContaining({ code: "MISSING_SKILL", at: "blocks.make-idea.skill" }),
+    );
+    expect(codes(errorsOf(variant((p) => void delete p.blocks[1]!.skill)))).toContain("MISSING_SKILL");
+  });
+
+  it.each(["../outside.md", "/abs/skill.md", "skills/x.txt", "skills/../../x.md"])("bei unsicherem Skill-Pfad %s", (skill) => {
+    expect(codes(errorsOf(variant((p) => void (p.blocks[0]!.skill = skill))))).toContain("INVALID_SKILL_PATH");
+  });
+
+  it("bei generate ohne writes und bei writes an einem Kritiker", () => {
+    expect(codes(errorsOf(variant((p) => void delete p.blocks[0]!.writes)))).toContain("MISSING_WRITES");
+    const errors = errorsOf(variant((p) => void (p.blocks[1]!.writes = { object_type: "idea", items: "/x" })));
+    expect(errors).toContainEqual(expect.objectContaining({ code: "WRITES_NOT_ALLOWED", at: "blocks.check-idea.writes" }));
+  });
+
+  it("bei writes auf unbekannten Objekttyp oder mit unbekanntem Provenienz-Wert", () => {
+    const errors = errorsOf(
+      variant((p) => void (p.blocks[0]!.writes = { object_type: "ghost", items: "/ideas", provenance: "GUESSED" })),
+    );
+    expect(errors).toContainEqual(expect.objectContaining({ code: "UNKNOWN_OBJECT_TYPE", at: "blocks.make-idea.writes" }));
+    expect(errors).toContainEqual(expect.objectContaining({ code: "INVALID_PROVENANCE", at: "blocks.make-idea.writes" }));
+  });
+
+  it("bei writes mit provenance und provenance_field zugleich", () => {
+    const r = validate_pack(
+      variant((p) => void (p.blocks[0]!.writes = { object_type: "idea", items: "/ideas", provenance: "ASSUMED", provenance_field: "src" })),
+    );
+    expect(codes(r.errors)).toContain("INVALID_STRUCTURE");
+  });
+
+  it("bei actor_roles mit unbekannter Rolle oder mit reviewer", () => {
+    expect(errorsOf(variant((p) => void (p.blocks[0]!.actor_roles = ["ghost"])))).toContainEqual(
+      expect.objectContaining({ code: "UNKNOWN_ROLE", at: "blocks.make-idea.actor_roles" }),
+    );
+    expect(codes(errorsOf(variant((p) => void (p.blocks[0]!.actor_roles = ["reviewer"]))))).toContain("BLOCK_WITH_REVIEWER_ROLE");
   });
 
   it("bei nicht kompilierbarem JSON Schema", () => {
