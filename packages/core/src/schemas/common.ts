@@ -31,6 +31,9 @@ export const Provenance = z.union([
 export type Provenance = z.infer<typeof Provenance>;
 export const provenanceValue = (p: Provenance) => (typeof p === "string" ? p : p.status);
 
+/** Rolle, die der Kern für jede Gate-Entscheidung und jedes Siegel verlangt. */
+export const REVIEWER_ROLE = "reviewer";
+
 export const ActorKind = z.enum(["human", "block"]);
 
 export const Actor = z

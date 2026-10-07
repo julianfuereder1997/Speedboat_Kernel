@@ -1,10 +1,11 @@
 import { Actor } from "./schemas/common.js";
 import type { CaseState } from "./schemas/case-state.js";
-import type { Pack } from "./schemas/pack.js";
+import { assertValidated, type ValidatedPack } from "./validated-pack.js";
 import { nowOf, type Options } from "./result.js";
 
 /** Legt eine leere Akte mit Revision 0 an. */
-export function create_case(input: { case_id: string; pack: Pack; actor: Actor }, opts?: Options): CaseState {
+export function create_case(input: { case_id: string; pack: ValidatedPack; actor: Actor }, opts?: Options): CaseState {
+  assertValidated(input.pack);
   const actor = Actor.parse(input.actor);
   return {
     case_id: input.case_id,

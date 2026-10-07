@@ -27,6 +27,8 @@ export const AuditEntry = z
     paths: z.array(ObjectPath),
     /** Provenienz je geändertem Pfad, wie sie im Patch stand. */
     provenance: z.record(ObjectPath, Provenance).optional(),
+    /** Bei decide_gate: Pfade, die mit dieser Entscheidung versiegelt wurden. */
+    frozen: z.array(ObjectPath).optional(),
   })
   .strict();
 export type AuditEntry = z.infer<typeof AuditEntry>;

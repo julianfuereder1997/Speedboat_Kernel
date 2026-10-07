@@ -1,4 +1,5 @@
 import { schemaError } from "./json-schema.js";
+import { REVIEWER_ROLE } from "./schemas/common.js";
 import { Pack } from "./schemas/pack.js";
 
 export type PackIssue = { code: string; at: string; message: string };
@@ -18,6 +19,12 @@ function duplicates(values: readonly string[]): string[] {
  * Warnung: Bausteine, die weder ein Gate noch ein anderer Baustein braucht.
  */
 export function validate_pack(input: unknown): PackValidation {
+  const { pack: _, ...result } = inspect_pack(input);
+  return result;
+}
+
+/** Wie validate_pack, gibt zusätzlich das geparste Pack zurück (für load_pack). */
+export function inspect_pack(input: unknown): PackValidation & { pack?: Pack } {
   const parsed = Pack.safeParse(input);
   if (!parsed.success) {
     return {
@@ -38,6 +45,9 @@ export function validate_pack(input: unknown): PackValidation {
   for (const d of duplicates(pack.blocks.map((b) => b.block))) error("DUPLICATE_BLOCK", `blocks.${d}`, `Baustein ${d} ist mehrfach definiert`);
   for (const d of duplicates(pack.markers.map((m) => m.id))) error("DUPLICATE_MARKER", `markers.${d}`, `Marker ${d} ist mehrfach definiert`);
   for (const d of duplicates(pack.roles)) error("DUPLICATE_ROLE", `roles.${d}`, `Rolle ${d} ist mehrfach definiert`);
+  if (Object.keys(pack.gates).length > 0 && !roles.has(REVIEWER_ROLE)) {
+    error("NO_REVIEWER_ROLE", "roles", `Das Pack hat Gates, vergibt aber die Rolle ${REVIEWER_ROLE} nicht`);
+  }
   for (const d of duplicates(pack.provenance_values)) {
     error("DUPLICATE_PROVENANCE_VALUE", `provenance_values.${d}`, `Provenienz-Wert ${d} ist mehrfach definiert`);
   }
@@ -116,6 +126,20 @@ export function validate_pack(input: unknown): PackValidation {
   for (const [gate, def] of Object.entries(pack.gates)) {
     const at = `gates.${gate}`;
     if (def.decisions.length === 0) error("NO_DECISIONS", `${at}.decisions`, `Gate ${gate} hat keine Entscheidung`);
+    if (def.freezes) {
+      for (const d of def.freezes.on) {
+        if (!def.decisions.includes(d)) error("UNKNOWN_DECISION", `${at}.freezes.on`, `${d} ist keine Entscheidung von ${gate}`);
+      }
+      for (const path of def.freezes.paths) {
+        const type = path.split("/")[2]!;
+        if (!Object.hasOwn(pack.object_types, type)) {
+          error("UNKNOWN_OBJECT_TYPE", `${at}.freezes.paths`, `${path}: Objekttyp ${type} ist im Pack nicht definiert`);
+        }
+      }
+    }
+    for (const d of def.final) {
+      if (!def.decisions.includes(d)) error("UNKNOWN_DECISION", `${at}.final`, `${d} ist keine Entscheidung von ${gate}`);
+    }
     for (const d of duplicates(def.decisions)) error("DUPLICATE_DECISION", `${at}.decisions`, `Entscheidung ${d} ist an ${gate} mehrfach definiert`);
     for (const field of ["requires", "checks"] as const) {
       const unknown = def[field].filter((b) => !blocks.has(b));
@@ -141,5 +165,5 @@ export function validate_pack(input: unknown): PackValidation {
     }
   }
 
-  return { valid: errors.length === 0, errors, warnings };
+  return { valid: errors.length === 0, errors, warnings, pack };
 }

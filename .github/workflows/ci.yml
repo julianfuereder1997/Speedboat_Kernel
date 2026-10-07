@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: speedboat
+          POSTGRES_PASSWORD: speedboat_ci # nur für den kurzlebigen CI-Container
+          POSTGRES_DB: speedboat
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U speedboat -d speedboat"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgres://speedboat:speedboat_ci@localhost:5432/speedboat
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Version kommt aus "packageManager" in package.json
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Domänen-Test (packages/core frei von Fachbegriffen)
+        run: pnpm vitest run tests/domain-terms.test.ts
+
+      - name: Alle Tests (inkl. Postgres)
+        run: pnpm test

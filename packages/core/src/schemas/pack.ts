@@ -12,6 +12,9 @@ export const ObjectType = z
   .strict();
 export type ObjectType = z.infer<typeof ObjectType>;
 
+/** Ganzes Objekt, ID darf `*` sein: /objects/<typ>/<id|*>. */
+export const FreezePath = z.string().regex(/^\/objects\/[^/*]+\/[^/]+$/, "freezes.paths verlangt /objects/<typ>/<id|*>");
+
 export const Gate = z
   .object({
     /** Bausteine, die vor dem Gate gelaufen sein müssen. */
@@ -19,6 +22,10 @@ export const Gate = z
     /** validate-Bausteine, deren letzter aktueller Lauf bestanden haben muss. */
     checks: z.array(Id),
     decisions: z.array(Id),
+    /** Entscheidungen, nach denen das Gate geschlossen ist. */
+    final: z.array(Id).default([]),
+    /** Objekte, die bei einer der Entscheidungen in `on` automatisch versiegelt werden. */
+    freezes: z.object({ paths: z.array(FreezePath).min(1), on: z.array(Id).min(1) }).strict().optional(),
   })
   .strict();
 export type Gate = z.infer<typeof Gate>;

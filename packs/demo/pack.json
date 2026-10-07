@@ -85,7 +85,9 @@
     "name-review": {
       "requires": ["propose-names", "challenge-names"],
       "checks": [],
-      "decisions": ["approve", "revise"]
+      "decisions": ["approve", "revise"],
+      "final": ["approve"],
+      "freezes": { "paths": ["/objects/candidate/*"], "on": ["approve"] }
     }
   },
   "bias_profiles": {

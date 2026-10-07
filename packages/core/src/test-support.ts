@@ -1,6 +1,6 @@
 // Gemeinsame Fixtures für die Kern-Tests. Wird nicht aus index.ts exportiert.
-import type { Actor, CaseState, Patch } from "./index.js";
-import { Pack, create_case } from "./index.js";
+import type { Actor, CaseState, PackInput, Patch, ValidatedPack } from "./index.js";
+import { create_case, load_pack } from "./index.js";
 
 export const AT = "2026-10-07T10:00:00.000Z";
 export const opts = { now: () => AT };
@@ -11,7 +11,7 @@ export const outsider: Actor = { id: "u-outsider", kind: "human", roles: [] };
 export const writerBlock: Actor = { id: "make-idea", kind: "block", roles: ["editor"] };
 export const blockWithReviewerRole: Actor = { id: "rogue", kind: "block", roles: ["editor", "reviewer"] };
 
-export const samplePack = Pack.parse({
+export const sampleRaw: PackInput = {
   pack: "sample",
   version: "1.0.0",
   object_types: {
@@ -78,13 +78,23 @@ export const samplePack = Pack.parse({
   ],
   dependencies: { "make-idea": [], "check-idea": ["make-idea"], "lint-idea": ["make-idea"] },
   gates: {
-    g1: { requires: ["make-idea", "check-idea"], checks: ["lint-idea"], decisions: ["accept", "rework"] },
+    g1: { requires: ["make-idea", "check-idea"], checks: ["lint-idea"], decisions: ["accept", "rework"], final: ["accept"],
+      freezes: { paths: ["/objects/idea/*"], on: ["accept"] } },
   },
   bias_profiles: { skeptic: { perspective: "outside reviewer" } },
   markers: [{ id: "weak" }, { id: "unclear" }],
   roles: ["editor", "reviewer"],
   provenance_values: ["CONFIRMED", "EXTRACTED", "ASSUMED"],
-});
+};
+
+/** Lädt ein Pack über load_pack und wirft, wenn es ungültig ist. */
+export function mustLoad(raw: unknown): ValidatedPack {
+  const r = load_pack(raw);
+  if (!r.ok) throw new Error(`Pack ungültig: ${JSON.stringify(r.errors)}`);
+  return r.pack;
+}
+
+export const samplePack = mustLoad(sampleRaw);
 
 export function newCase(): CaseState {
   return create_case({ case_id: "case-1", pack: samplePack, actor: editor }, opts);

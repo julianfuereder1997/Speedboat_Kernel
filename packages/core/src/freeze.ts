@@ -1,11 +1,10 @@
 import { createHash } from "node:crypto";
 import { packMismatch } from "./apply-patch.js";
-import { REVIEWER_ROLE } from "./gate.js";
 import { getAt, overlaps, parsePointer } from "./pointer.js";
 import { commit, nowOf, reject, type Applied, type Options, type Rejected } from "./result.js";
-import { Actor, ObjectPath } from "./schemas/common.js";
+import { Actor, ObjectPath, REVIEWER_ROLE } from "./schemas/common.js";
 import type { CaseState, FrozenRecord } from "./schemas/case-state.js";
-import type { Pack } from "./schemas/pack.js";
+import { assertValidated, type ValidatedPack } from "./validated-pack.js";
 
 /** JSON mit rekursiv sortierten Objektschlüsseln; Grundlage der Prüfsumme. */
 export function canonicalJson(value: unknown): string {
@@ -21,8 +20,19 @@ export function canonicalJson(value: unknown): string {
 
 export const sha256Of = (value: unknown) => createHash("sha256").update(canonicalJson(value)).digest("hex");
 
+/** Wie oft ein Pfad schon versiegelt wurde, direkt per freeze oder über eine Gate-Entscheidung. */
+function freezeCount(state: CaseState, path: string): number {
+  return state.audit.filter((e) => (e.action === "freeze" && e.ref === path) || e.frozen?.includes(path)).length;
+}
+
+/** Baut das Siegel für einen Pfad; von freeze und decide_gate gemeinsam genutzt. */
+export function sealRecord(state: CaseState, path: string, value: unknown, by: string, at: string, revision: number): FrozenRecord {
+  return { path, version: freezeCount(state, path) + 1, sha256: sha256Of(value), revision, at, by };
+}
+
 /** Versiegelt ein Objekt (oder einen Teil davon). Danach ist es nur per Change Request änderbar. */
-export function freeze(state: CaseState, path: string, actorInput: Actor, pack: Pack, opts?: Options): Applied | Rejected {
+export function freeze(state: CaseState, path: string, actorInput: Actor, pack: ValidatedPack, opts?: Options): Applied | Rejected {
+  assertValidated(pack);
   const parsedActor = Actor.safeParse(actorInput);
   if (!parsedActor.success) return reject("FORBIDDEN", "ungültiger Akteur", parsedActor.error.issues);
   const actor = parsedActor.data;
@@ -38,11 +48,9 @@ export function freeze(state: CaseState, path: string, actorInput: Actor, pack: 
   const overlapping = Object.keys(state.frozen).filter((f) => overlaps(f, path));
   if (overlapping.length > 0) return reject("ALREADY_FROZEN", `${path} ist bereits versiegelt`, { frozen: overlapping });
 
-  const previous = state.audit.filter((e) => e.action === "freeze" && e.ref === path).length;
   const at = nowOf(opts);
   const next = commit(state, actor, at, { action: "freeze", ref: path, paths: [] }, (d, revision) => {
-    const record: FrozenRecord = { path, version: previous + 1, sha256: sha256Of(target.value), revision, at, by: actor.id };
-    d.frozen[path] = record;
+    d.frozen[path] = sealRecord(state, path, target.value, actor.id, at, revision);
   });
   return { status: "APPLIED", case: next };
 }

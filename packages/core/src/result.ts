@@ -19,6 +19,8 @@ export type RejectCode =
   | "FORBIDDEN"
   | "PATH_CONFLICT"
   | "GATE_BLOCKED"
+  | "GATE_CLOSED"
+  | "DEPENDENCY_NOT_MET"
   | "INVALID_DECISION"
   | "ALREADY_FROZEN"
   | "NOT_FOUND";
@@ -41,7 +43,7 @@ export function commit(
   state: CaseState,
   actor: Actor,
   at: string,
-  entry: Pick<AuditEntry, "action" | "ref" | "paths" | "provenance">,
+  entry: Pick<AuditEntry, "action" | "ref" | "paths" | "provenance" | "frozen">,
   update: (draft: CaseState, revision: number) => void,
 ): CaseState {
   const draft = structuredClone(state);
@@ -50,6 +52,7 @@ export function commit(
   draft.revision = revision;
   const audit: AuditEntry = { revision, at, actor: { id: actor.id, kind: actor.kind }, action: entry.action, ref: entry.ref, paths: entry.paths };
   if (entry.provenance !== undefined) audit.provenance = entry.provenance;
+  if (entry.frozen !== undefined) audit.frozen = entry.frozen;
   draft.audit.push(audit);
   return draft;
 }

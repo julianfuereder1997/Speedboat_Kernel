@@ -1,11 +1,11 @@
 // Gemeinsame Vertragstests für jeden StateAdapter.
 import { expect, it } from "vitest";
-import { Pack, apply_patch, create_case, type Actor, type CaseState, type StateAdapter } from "@speedboat/core";
+import { apply_patch, create_case, load_pack, type Actor, type CaseState, type StateAdapter } from "@speedboat/core";
 
 const AT = "2026-10-07T10:00:00.000Z";
 const editor: Actor = { id: "u-editor", kind: "human", roles: ["editor"] };
 
-export const pack = Pack.parse({
+const loaded = load_pack({
   pack: "sample",
   version: "1.0.0",
   object_types: { item: { schema: { type: "object" }, write_roles: ["editor"] } },
@@ -17,6 +17,8 @@ export const pack = Pack.parse({
   roles: ["editor"],
   provenance_values: [],
 });
+if (!loaded.ok) throw new Error(JSON.stringify(loaded.errors));
+export const pack = loaded.pack;
 
 export const fresh = (case_id: string) => create_case({ case_id, pack, actor: editor }, { now: () => AT });
 

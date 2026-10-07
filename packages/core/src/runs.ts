@@ -2,11 +2,12 @@ import { isDeepStrictEqual } from "node:util";
 import { z } from "zod";
 import { packMismatch } from "./apply-patch.js";
 import { checkSchema } from "./json-schema.js";
+import { missingDependencies } from "./dependencies.js";
 import { getAt, overlaps, parsePointer } from "./pointer.js";
 import { commit, nowOf, reject, type Applied, type Options, type Rejected } from "./result.js";
 import { Actor, Id, InputPath, Json } from "./schemas/common.js";
 import type { CaseState, RunRecord } from "./schemas/case-state.js";
-import type { Pack } from "./schemas/pack.js";
+import { assertValidated, type ValidatedPack } from "./validated-pack.js";
 
 export const RunInput = z
   .object({
@@ -29,7 +30,8 @@ export const CriticOutput = z.object({ findings: z.array(z.object({ marker: Id, 
 export const ValidatorOutput = z.object({ passed: z.boolean() }).loose();
 
 /** Trägt einen Baustein-Lauf in die Akte ein. Läufe sind append-only. */
-export function record_run(state: CaseState, runInput: RunInput, actorInput: Actor, pack: Pack, opts?: Options): Applied | Rejected {
+export function record_run(state: CaseState, runInput: RunInput, actorInput: Actor, pack: ValidatedPack, opts?: Options): Applied | Rejected {
+  assertValidated(pack);
   const parsed = RunInput.safeParse(runInput);
   if (!parsed.success) return reject("INVALID_RUN", "Run entspricht nicht dem Schema", parsed.error.issues);
   const run = parsed.data;
@@ -42,6 +44,10 @@ export function record_run(state: CaseState, runInput: RunInput, actorInput: Act
 
   const contract = pack.blocks.find((b) => b.block === run.block);
   if (!contract) return reject("UNKNOWN_BLOCK", `Baustein ${run.block} ist im Pack nicht definiert`);
+  const missing = missingDependencies(state, pack, run.block);
+  if (missing.length > 0) {
+    return reject("DEPENDENCY_NOT_MET", `${run.block} braucht vorher: ${missing.join(", ")}`, { missing });
+  }
   if (state.runs.some((r) => r.run_id === run.run_id)) {
     return reject("DUPLICATE_RUN_ID", `run_id ${run.run_id} ist bereits vergeben`);
   }

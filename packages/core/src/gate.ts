@@ -1,14 +1,14 @@
 import { z } from "zod";
 import { packMismatch } from "./apply-patch.js";
-import { overlaps } from "./pointer.js";
+import { sealRecord } from "./freeze.js";
+import { expand, formatPointer, getAt, overlaps, parsePointer } from "./pointer.js";
 import { commit, nowOf, reject, type Applied, type Options, type Rejected } from "./result.js";
-import { Actor, Id } from "./schemas/common.js";
+import { Actor, Id, REVIEWER_ROLE } from "./schemas/common.js";
+export { REVIEWER_ROLE };
 import type { CaseState, Decision } from "./schemas/case-state.js";
-import type { Pack } from "./schemas/pack.js";
+import { assertValidated, type ValidatedPack } from "./validated-pack.js";
 import { ValidatorOutput } from "./runs.js";
 
-/** Rolle, die der Kern für jede Gate-Entscheidung verlangt. */
-export const REVIEWER_ROLE = "reviewer";
 
 export type FailedCheck = { block: string; reason: "not_run" | "failed" | "stale" | "not_a_validator"; run_id?: string };
 export type RunViolation = { run_id: string; reason: "duplicate_run_id" | "critic_shares_generator_run_id" };
@@ -24,8 +24,14 @@ export function lastChangeRevision(state: CaseState, patterns: readonly string[]
   return last;
 }
 
+/** Letzte Entscheidung an einem Gate, falls es eine gibt. */
+export function lastDecision(state: CaseState, gate: string): string | undefined {
+  return state.decisions.findLast((d) => d.gate === gate)?.decision;
+}
+
 /** Prüft ein Gate gegen das Run-Log. Rein lesend, deterministisch. */
-export function gate_check(state: CaseState, pack: Pack, gateName: string): GateCheck {
+export function gate_check(state: CaseState, pack: ValidatedPack, gateName: string): GateCheck {
+  assertValidated(pack);
   const gate = pack.gates[gateName];
   if (!gate) throw new Error(`Gate ${gateName} ist im Pack nicht definiert`);
   const contractOf = (block: string) => pack.blocks.find((b) => b.block === block);
@@ -70,7 +76,8 @@ export const GateDecisionInput = z.object({ gate: Id, decision: Id, reason: z.st
 export type GateDecisionInput = z.infer<typeof GateDecisionInput>;
 
 /** Trägt eine Gate-Entscheidung ein. Nur ein Mensch mit Reviewer-Rolle darf entscheiden, egal was das Pack sagt. */
-export function decide_gate(state: CaseState, pack: Pack, input: GateDecisionInput, actorInput: Actor, opts?: Options): Applied | Rejected {
+export function decide_gate(state: CaseState, pack: ValidatedPack, input: GateDecisionInput, actorInput: Actor, opts?: Options): Applied | Rejected {
+  assertValidated(pack);
   const parsedActor = Actor.safeParse(actorInput);
   if (!parsedActor.success) return reject("FORBIDDEN", "ungültiger Akteur", parsedActor.error.issues);
   const actor = parsedActor.data;
@@ -85,17 +92,38 @@ export function decide_gate(state: CaseState, pack: Pack, input: GateDecisionInp
   if (mismatch) return mismatch;
   const gate = pack.gates[gateName];
   if (!gate) return reject("UNKNOWN_GATE", `Gate ${gateName} ist im Pack nicht definiert`);
+  const last = lastDecision(state, gateName);
+  if (last !== undefined && gate.final.includes(last)) {
+    return reject("GATE_CLOSED", `${gateName} ist mit ${last} abgeschlossen; Wiederöffnen nur per Change Request`);
+  }
   if (!gate.decisions.includes(decision)) {
     return reject("INVALID_DECISION", `${decision} ist an ${gateName} nicht erlaubt`, { allowed: gate.decisions });
   }
   const check = gate_check(state, pack, gateName);
   if (!check.ok) return reject("GATE_BLOCKED", `${gateName} ist blockiert`, check);
 
+  // Zu versiegelnde Objekte: Muster auflösen, konkret genannte müssen existieren, schon Versiegeltes überspringen.
+  const toFreeze: string[] = [];
+  if (gate.freezes?.on.includes(decision)) {
+    for (const pattern of gate.freezes.paths) {
+      const segments = parsePointer(pattern);
+      const hits = expand(state, segments).map(formatPointer);
+      if (hits.length === 0 && !segments.includes("*")) return reject("NOT_FOUND", `${pattern} soll versiegelt werden, existiert aber nicht`);
+      for (const path of hits) {
+        if (!toFreeze.includes(path) && !Object.keys(state.frozen).some((f) => overlaps(f, path))) toFreeze.push(path);
+      }
+    }
+  }
+
   const at = nowOf(opts);
-  const next = commit(state, actor, at, { action: "decide_gate", ref: gateName, paths: [] }, (d, revision) => {
-    const entry: Decision = { gate: gateName, decision, decided_by: actor.id, at, revision };
-    if (reason !== undefined) entry.reason = reason;
-    d.decisions.push(entry);
+  const entry = { action: "decide_gate" as const, ref: gateName, paths: [] };
+  const next = commit(state, actor, at, toFreeze.length > 0 ? { ...entry, frozen: toFreeze } : entry, (d, revision) => {
+    const record: Decision = { gate: gateName, decision, decided_by: actor.id, at, revision };
+    if (reason !== undefined) record.reason = reason;
+    d.decisions.push(record);
+    for (const path of toFreeze) {
+      d.frozen[path] = sealRecord(state, path, getAt(state, parsePointer(path)).value, actor.id, at, revision);
+    }
   });
   return { status: "APPLIED", case: next };
 }

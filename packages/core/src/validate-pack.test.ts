@@ -109,6 +109,29 @@ describe("validate_pack: Fehler", () => {
     expect(codes(errorsOf(variant((p) => void (p.gates["g1"]!.decisions = []))))).toContain("NO_DECISIONS");
   });
 
+  it("bei abschließender Entscheidung, die das Gate nicht kennt", () => {
+    expect(errorsOf(variant((p) => void (p.gates["g1"]!.final = ["done"])))).toContainEqual(
+      expect.objectContaining({ code: "UNKNOWN_DECISION", at: "gates.g1.final" }),
+    );
+  });
+
+  it("bei freezes.on mit einer Entscheidung, die das Gate nicht kennt", () => {
+    expect(errorsOf(variant((p) => void (p.gates["g1"]!.freezes = { paths: ["/objects/idea/*"], on: ["done"] })))).toContainEqual(
+      expect.objectContaining({ code: "UNKNOWN_DECISION", at: "gates.g1.freezes.on" }),
+    );
+  });
+
+  it("bei freezes.paths mit unbekanntem Objekttyp", () => {
+    expect(errorsOf(variant((p) => void (p.gates["g1"]!.freezes = { paths: ["/objects/ghost/*"], on: ["accept"] })))).toContainEqual(
+      expect.objectContaining({ code: "UNKNOWN_OBJECT_TYPE", at: "gates.g1.freezes.paths" }),
+    );
+  });
+
+  it("bei freezes.paths, die kein ganzes Objekt bezeichnen", () => {
+    const r = validate_pack(variant((p) => void (p.gates["g1"]!.freezes = { paths: ["/objects/idea/i1/title"], on: ["accept"] })));
+    expect(codes(r.errors)).toContain("INVALID_STRUCTURE");
+  });
+
   it("bei doppelten Entscheidungen je Gate", () => {
     expect(codes(errorsOf(variant((p) => void p.gates["g1"]!.decisions.push("accept"))))).toContain("DUPLICATE_DECISION");
   });
@@ -150,6 +173,24 @@ describe("validate_pack: Fehler", () => {
     expect(errorsOf(variant((p) => void p.object_types["note"]!.write_roles.push("ghost")))).toContainEqual(
       expect.objectContaining({ code: "UNKNOWN_ROLE", at: "object_types.note.write_roles" }),
     );
+  });
+
+  it("bei Gates, wenn das Pack die Rolle reviewer nicht vergibt", () => {
+    expect(errorsOf(variant((p) => void (p.roles = ["editor"])))).toContainEqual(
+      expect.objectContaining({ code: "NO_REVIEWER_ROLE", at: "roles" }),
+    );
+  });
+
+  it("ohne Gates ist die Rolle reviewer nicht nötig", () => {
+    const r = validate_pack(
+      variant((p) => {
+        p.roles = ["editor"];
+        p.gates = {};
+        p.blocks = p.blocks.filter((b) => b.block === "make-idea");
+        p.dependencies = { "make-idea": [] };
+      }),
+    );
+    expect(r.errors).toEqual([]);
   });
 
   it("bei Pflicht-Provenienz ohne definierte Provenienz-Werte", () => {

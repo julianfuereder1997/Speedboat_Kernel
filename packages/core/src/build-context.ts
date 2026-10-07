@@ -1,6 +1,6 @@
 import { expand, getAt, parsePointer } from "./pointer.js";
 import type { CaseState } from "./schemas/case-state.js";
-import { BlockContract } from "./schemas/contract.js";
+import { assertSamePack, assertValidated, type ValidatedPack } from "./validated-pack.js";
 
 export type BlockContext = {
   case_id: string;
@@ -30,9 +30,15 @@ function setSparse(target: Record<string, unknown>, source: unknown, segments: r
   }
 }
 
-/** Baut den Kontext eines Bausteins. Der Kern entscheidet, was das Modell sieht, nicht das Modell. */
-export function build_context(contractInput: BlockContract, state: CaseState): BlockContext {
-  const contract = BlockContract.parse(contractInput);
+/**
+ * Baut den Kontext eines Bausteins. Der Kern entscheidet, was das Modell sieht, nicht das Modell.
+ * Der Vertrag kommt aus dem geprüften Pack, nie vom Aufrufer.
+ */
+export function build_context(state: CaseState, pack: ValidatedPack, block: string): BlockContext {
+  assertValidated(pack);
+  assertSamePack(state, pack);
+  const contract = pack.blocks.find((b) => b.block === block);
+  if (!contract) throw new Error(`Baustein ${block} ist im Pack nicht definiert`);
   const data: Record<string, unknown> = {};
   const missing: string[] = [];
   for (const pattern of contract.input) {

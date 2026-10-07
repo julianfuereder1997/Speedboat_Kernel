@@ -7,6 +7,13 @@ import { fresh, next, stateAdapterSuite } from "./state-adapter-suite.js";
 const url = process.env.DATABASE_URL;
 const table = `cases_test_${randomUUID().replace(/-/g, "").slice(0, 12)}`;
 
+// In CI darf nichts still übersprungen werden: fehlt dort DATABASE_URL, schlägt dieser Test fehl.
+describe("Postgres in CI", () => {
+  it.runIf(process.env.CI === "true")("DATABASE_URL ist gesetzt, die Postgres-Tests laufen", () => {
+    expect(url, "DATABASE_URL fehlt in CI").toBeTruthy();
+  });
+});
+
 // Läuft nur mit DATABASE_URL (z. B. nach `pnpm db:up`); sonst übersprungen.
 describe.skipIf(!url)("PostgresStateAdapter", () => {
   let pool: pg.Pool;

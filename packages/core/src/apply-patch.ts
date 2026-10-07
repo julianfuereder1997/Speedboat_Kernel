@@ -7,6 +7,7 @@ import { Actor, type Json, PROVENANCE_KEY, provenanceValue, type Provenance } fr
 import type { CaseState, ChangeRequest } from "./schemas/case-state.js";
 import type { Pack } from "./schemas/pack.js";
 import { Patch } from "./schemas/patch.js";
+import { assertValidated, type ValidatedPack } from "./validated-pack.js";
 
 type JsonValue = z.infer<typeof Json>;
 
@@ -22,7 +23,8 @@ export function packMismatch(state: CaseState, pack: Pack): Rejected | null {
  * Einziger Schreibweg für Objekte der Akte.
  * Reihenfolge: Form → Akte/Pack → Revision → Idempotenz → Typ/Rolle/Provenienz → Anwenden/Schema → Freeze.
  */
-export function apply_patch(state: CaseState, patchInput: Patch, actorInput: Actor, pack: Pack, opts?: Options): PatchResult {
+export function apply_patch(state: CaseState, patchInput: Patch, actorInput: Actor, pack: ValidatedPack, opts?: Options): PatchResult {
+  assertValidated(pack);
   const parsedPatch = Patch.safeParse(patchInput);
   if (!parsedPatch.success) return reject("INVALID_PATCH", "Patch entspricht nicht dem Schema", parsedPatch.error.issues);
   const patch = parsedPatch.data;

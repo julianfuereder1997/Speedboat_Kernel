@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { apply_patch, build_context } from "./index.js";
-import type { BlockContract, CaseState } from "./index.js";
-import { deepFreeze, editor, newCase, opts, patch, samplePack } from "./test-support.js";
+import type { CaseState } from "./index.js";
+import { deepFreeze, editor, mustLoad, newCase, opts, patch, samplePack, sampleRaw } from "./test-support.js";
 
 const SECRET = "weil der Generator es so begründet";
 
@@ -22,7 +22,9 @@ function caseWithIdeas(): CaseState {
   return deepFreeze(r1.case);
 }
 
-const contractOf = (block: string): BlockContract => samplePack.blocks.find((b) => b.block === block)!;
+/** Beispiel-Pack, in dem ein Baustein andere Eingabepfade hat; geladen über load_pack. */
+const withInput = (block: string, input: string[]) =>
+  mustLoad({ ...sampleRaw, blocks: sampleRaw.blocks.map((b) => (b.block === block ? { ...b, input } : b)) });
 
 /** Sucht rekursiv nach einem Schlüssel oder einem String-Wert. */
 function contains(value: unknown, needle: string): boolean {
@@ -38,14 +40,14 @@ describe("build_context", () => {
     const state = caseWithIdeas();
     expect(contains(state, SECRET)).toBe(true); // sie steht in der Akte
 
-    const ctx = build_context(contractOf("check-idea"), state);
+    const ctx = build_context(state, samplePack, "check-idea");
     expect(ctx.data).toEqual({ objects: { idea: { i1: { title: "Idee eins" }, i2: { title: "Idee zwei" } } } });
     expect(contains(ctx, SECRET)).toBe(false);
     expect(contains(ctx, "rationale")).toBe(false);
   });
 
   it("liefert nur die Felder aus contract.input und keine Metadaten der Akte", () => {
-    const ctx = build_context(contractOf("make-idea"), caseWithIdeas());
+    const ctx = build_context(caseWithIdeas(), samplePack, "make-idea");
     expect(ctx.data).toEqual({ objects: { note: { n1: { text: "fact", tags: ["a"], _provenance: "CONFIRMED" } } } });
     for (const key of ["audit", "runs", "decisions", "frozen", "change_requests", "idea"]) {
       expect(contains(ctx.data, key), key).toBe(false);
@@ -54,36 +56,41 @@ describe("build_context", () => {
 
   it("liefert die Provenienz mit, wenn der Vertrag das ganze Objekt oder _provenance verlangt", () => {
     const state = caseWithIdeas();
-    const contract: BlockContract = { ...contractOf("check-idea"), input: ["/objects/note/*/text", "/objects/note/*/_provenance"] };
-    expect(build_context(contract, state).data).toEqual({ objects: { note: { n1: { text: "fact", _provenance: "CONFIRMED" } } } });
+    const pack = withInput("check-idea", ["/objects/note/*/text", "/objects/note/*/_provenance"]);
+    expect(build_context(state, pack, "check-idea").data).toEqual({ objects: { note: { n1: { text: "fact", _provenance: "CONFIRMED" } } } });
   });
 
   it("gibt revision und Eingabepfade für den Run-Record zurück", () => {
     const state = caseWithIdeas();
-    const ctx = build_context(contractOf("check-idea"), state);
+    const ctx = build_context(state, samplePack, "check-idea");
     expect(ctx).toMatchObject({ case_id: "case-1", block: "check-idea", revision: state.revision, input_paths: ["/objects/idea/*/title"] });
   });
 
   it("meldet fehlende konkrete Pfade, statt auf die ganze Akte auszuweichen", () => {
-    const contract: BlockContract = { ...contractOf("make-idea"), input: ["/objects/note/n9", "/objects/idea/*/missing"] };
-    const ctx = build_context(contract, caseWithIdeas());
+    const pack = withInput("make-idea", ["/objects/note/n9", "/objects/idea/*/missing"]);
+    const ctx = build_context(caseWithIdeas(), pack, "make-idea");
     expect(ctx.data).toEqual({});
     expect(ctx.missing).toEqual(["/objects/note/n9"]);
   });
 
   it("liefert eine Kopie: Änderungen am Kontext berühren die Akte nicht", () => {
     const state = caseWithIdeas();
-    const ctx = build_context(contractOf("make-idea"), state);
+    const ctx = build_context(state, samplePack, "make-idea");
     (ctx.data as { objects: { note: { n1: { text: string } } } }).objects.note.n1.text = "manipuliert";
     expect(state.objects.note?.n1?.text).toBe("fact");
   });
 
-  it("lehnt einen ungültigen Vertrag ab", () => {
-    expect(() => build_context({ ...contractOf("make-idea"), input: ["kein pointer"] }, caseWithIdeas())).toThrow();
+  it("ein Vertrag mit ungültigem Eingabepfad kommt gar nicht erst durch load_pack", () => {
+    expect(() => withInput("make-idea", ["kein pointer"])).toThrow(/ungültig/);
+  });
+
+  it("wirft, wenn Akte und Pack nicht zusammenpassen", () => {
+    const other = mustLoad({ ...sampleRaw, version: "2.0.0" });
+    expect(() => build_context(caseWithIdeas(), other, "make-idea")).toThrow(/sample@1.0.0/);
   });
 
   it("ein leerer input ergibt einen leeren Kontext", () => {
-    const ctx = build_context({ ...contractOf("make-idea"), input: [] }, caseWithIdeas());
+    const ctx = build_context(caseWithIdeas(), withInput("make-idea", []), "make-idea");
     expect(ctx.data).toEqual({});
   });
 });
