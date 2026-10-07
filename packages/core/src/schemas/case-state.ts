@@ -80,6 +80,8 @@ export const RunRecord = z
     revision: Revision,
     input_paths: z.array(InputPath),
     output: Json,
+    /** Mensch, der den Lauf angestoßen hat. */
+    requested_by: Id.optional(),
   })
   .strict();
 export type RunRecord = z.infer<typeof RunRecord>;

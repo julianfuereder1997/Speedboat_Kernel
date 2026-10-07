@@ -40,6 +40,14 @@ describe("record_run → APPLIED", () => {
     expect(CaseState.safeParse(r.case).success).toBe(true);
   });
 
+  it("speichert, welcher Mensch den Lauf angestoßen hat", () => {
+    const s = caseWithIdeaOnly();
+    const r = record_run(s, { ...runFor(s, "make-idea", "run-g1", {}), requested_by: "u-editor" }, writerBlock, samplePack, opts);
+    if (r.status !== "APPLIED") throw new Error(JSON.stringify(r));
+    expect(r.case.runs.at(-1)?.requested_by).toBe("u-editor");
+    expect(CaseState.safeParse(r.case).success).toBe(true);
+  });
+
   it("akzeptiert Kritiker-Ausgaben mit bekannten Markern", () => {
     const s = caseWithIdea();
     const out = { findings: [{ marker: "weak", target: "/objects/idea/i1" }, { marker: "unclear", target: "/objects/idea/i1" }] };

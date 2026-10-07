@@ -42,8 +42,8 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
-      - name: Domänen-Test (packages/core frei von Fachbegriffen)
+      - name: Domänen-Test (packages/ frei von Fachbegriffen)
         run: pnpm vitest run tests/domain-terms.test.ts
 
-      - name: Alle Tests (inkl. Postgres)
+      - name: Alle Tests (inkl. Postgres und pg-boss, ohne echte Modell-API)
         run: pnpm test

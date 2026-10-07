@@ -48,7 +48,11 @@
           }
         }
       },
-      "isolation": "shared"
+      "isolation": "shared",
+      "skill": "skills/propose-names.md",
+      "model_hint": "default",
+      "actor_roles": ["generator"],
+      "writes": { "object_type": "candidate", "items": "/candidates", "provenance": "GENERATED" }
     },
     {
       "block": "challenge-names",
@@ -64,7 +68,7 @@
               "type": "object",
               "required": ["marker", "target"],
               "properties": {
-                "marker": { "type": "string" },
+                "marker": { "type": "string", "enum": ["too_generic", "hard_to_pronounce"] },
                 "target": { "type": "string" },
                 "note": { "type": "string" }
               }
@@ -74,7 +78,9 @@
       },
       "markers": ["too_generic", "hard_to_pronounce"],
       "bias": "skeptical_customer",
-      "isolation": "fresh_context"
+      "isolation": "fresh_context",
+      "skill": "skills/challenge-names.md",
+      "model_hint": "frontier"
     }
   ],
   "dependencies": {
@@ -101,5 +107,5 @@
     { "id": "hard_to_pronounce", "description": "The audience is unlikely to say the name correctly on first read." }
   ],
   "roles": ["editor", "generator", "reviewer"],
-  "provenance_values": ["USER_INPUT", "ASSUMED"]
+  "provenance_values": ["USER_INPUT", "ASSUMED", "GENERATED"]
 }

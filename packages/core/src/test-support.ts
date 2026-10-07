@@ -42,10 +42,15 @@ export const sampleRaw: PackInput = {
       input: ["/objects/note"],
       output_schema: { type: "object" },
       isolation: "shared",
+      skill: "skills/make-idea.md",
+      actor_roles: ["editor"],
+      writes: { object_type: "idea", items: "/ideas", provenance: "ASSUMED" },
     },
     {
       block: "check-idea",
       type: "critic",
+      skill: "skills/check-idea.md",
+      model_hint: "frontier",
       input: ["/objects/idea/*/title"],
       output_schema: {
         type: "object",

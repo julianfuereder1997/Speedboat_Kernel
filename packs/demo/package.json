@@ -3,11 +3,17 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "files": ["pack.json"],
+  "files": [
+    "pack.json"
+  ],
   "scripts": {
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
     "@speedboat/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@speedboat/adapters": "workspace:*",
+    "@speedboat/runtime": "workspace:*"
   }
 }

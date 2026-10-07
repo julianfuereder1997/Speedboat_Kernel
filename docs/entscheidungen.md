@@ -150,6 +150,136 @@ eine geänderte Entscheidung bekommt einen neuen Eintrag, der den alten nennt.
 
 ---
 
+# Phase 1: Durchstich vom MCP-Werkzeug bis zur Akte
+
+## E-15 Startobjekte über create_case; Ergänzungen folgen in Phase 2
+
+- **Entscheidung:** `create_case` nimmt optional Startobjekte samt Provenienz an. Der Kern legt
+  die Akte an (Revision 0) und trägt die Objekte im Namen des anfragenden Menschen per
+  `apply_patch` ein (Revision 1, eigener Audit-Eintrag). Lehnt der Kern ab, entsteht keine Akte.
+- **Grund:** Ein Generator braucht Eingaben; keines der fünf Werkzeuge schreibt sonst Objekte.
+- **Ausblick:** In Phase 2 folgt ein eigenes Werkzeug für menschliche Ergänzungen und
+  Korrekturen an einer bestehenden Akte.
+- **Datum:** 07.10.2026
+
+## E-16 Neue Vertragsfelder: skill, model_hint, actor_roles, writes
+
+- **Entscheidung:** Modell-Bausteine (`extract`, `generate`, `critic`) verweisen per `skill` auf eine
+  Markdown-Datei im Pack (relativer Pfad, kein `..`). `model_hint` (Standard `default`) wählt das
+  Modell über die Konfiguration. `actor_roles` sind die Rollen, mit denen ein Baustein Patches
+  schreibt; `reviewer` ist verboten. `generate` und `extract` brauchen `writes`: welcher
+  Objekttyp aus welchem Array der Ausgabe entsteht, mit fester Provenienz oder aus einem Feld.
+  Run-Records speichern `requested_by`, den anstoßenden Menschen. `validate_pack` prüft alles
+  davon; Existenz der Skill-Dateien und Zuordnung der Hints prüft der Pack-Loader der Runtime.
+- **Grund:** Alles, was je Domäne variiert, bleibt im Pack; der Kern liest keine Dateien.
+- **Datum:** 07.10.2026
+
+## E-17 Ausgabe → Patch über contract.writes
+
+- **Entscheidung:** Die Runtime übersetzt die Ausgabe eines Generators oder einer Extraktion über
+  `writes` in `add`-Änderungen (`/objects/<typ>/<id>`, ID aus `id_field` oder `<run_id>-<index>`)
+  und wendet sie per `apply_patch` im Namen des Bausteins an. Das Modell schreibt nie selbst Pfade.
+- **Grund:** Weniger Fehlerquellen; alle Prüfungen (Rolle, Schema, Provenienz, Siegel) bleiben im Kern.
+- **Datum:** 07.10.2026
+
+## E-18 Modell-Adapter: zustandslos, Zuordnung in der Konfiguration
+
+- **Entscheidung:** `ModelAdapter.complete(prompt, model_hint, output_schema)` ist zustandslos:
+  ein system-Teil (Skill-Text, bei Kritikern plus Bias-Profil) und genau eine user-Nachricht
+  (Kontext aus `build_context` plus Ausgabehinweise). Jeder Kritiker-Lauf ist dadurch ein frischer
+  Aufruf ohne Verlauf. `config/models.json` ordnet Hints zu: `frontier` → `claude-opus-5-5`,
+  `default` → `claude-sonnet-5`, je mit Effort und `max_tokens`. Im Demo-Pack läuft der Kritiker
+  auf `frontier`, der Generator auf `default`. Der Schlüssel kommt aus `ANTHROPIC_API_KEY`.
+- **Grund:** Modellwechsel ist Konfiguration, kein Code; Isolation des Kritikers ist strukturell.
+- **Datum:** 07.10.2026
+
+## E-19 Schemavereinfachung im Adapter, Ajv bleibt Autorität
+
+- **Entscheidung:** Die strukturierte Ausgabe der API unterstützt nur einen Teil von JSON Schema.
+  Der Adapter setzt `additionalProperties: false` an jedem Objekt und entfernt nicht unterstützte
+  Regeln (`minLength`, `minimum`, `minItems` …). Die vollständige Prüfung gegen das Pack-Schema
+  macht danach Ajv im Kern bei `record_run` und `apply_patch`.
+- **Grund:** Das Pack-Schema bleibt maßgeblich, unabhängig vom Modellanbieter.
+- **Datum:** 07.10.2026
+
+## E-20 Refusal-Fallback standardmäßig aus
+
+- **Entscheidung:** Lehnt das Modell ab (`stop_reason: refusal`), ist der Lauf endgültig
+  gescheitert, mit klarem Grund (`MODEL_REFUSAL`, Kategorie, Modell, Tokens). Der serverseitige
+  Fallback existiert als Option in `config/models.json` (`refusal_fallback.enabled`), ist aber aus.
+- **Grund:** Welches Modell einen Lauf erledigt, soll nachvollziehbar und konfiguriert sein.
+- **Datum:** 07.10.2026
+
+## E-21 Wiederholungen mit fester Obergrenze
+
+- **Entscheidung:** Höchstens **3 Versuche** je Lauf (`MAX_ATTEMPTS`, pg-boss `retryLimit = 2`).
+  Deterministische Fehler (Akte/Pack/Baustein fehlt, kein Modell-Baustein, Abhängigkeit oder
+  Eingabe fehlt, unbekannter Hint, Ablehnung durch das Modell, 4xx der API) sind sofort endgültig.
+  Abgelehnte Modellausgaben (Schema, Marker, Ziel, Patch) werden **genau einmal** wiederholt.
+  Vorübergehende Fehler (429/5xx, abgeschnittene oder ungültige JSON-Ausgabe, Konflikt beim
+  Speichern) bis zur Obergrenze. Ein Konflikt beim Speichern wiederholt den ganzen Job mit einem
+  neuen Modellaufruf.
+- **Bekannte Kosten:** Ein Speicherkonflikt kostet einen zusätzlichen Modellaufruf. Die alte Ausgabe
+  wiederzuverwenden, wenn sich die Eingaben nicht geändert haben, ist auf später verschoben.
+- **Datum:** 07.10.2026
+
+## E-22 Abgelehnte Versuche in einem Protokoll außerhalb der Akte
+
+- **Entscheidung:** Jeder gescheiterte Versuch landet in `run_attempts` (run_id, Versuch, Code,
+  Grund, Modell, Tokens, Zeitpunkt), getrennt von der Akte. `get_run` liefert ihn mit.
+  Unbekannte Tokenzahlen bleiben leer, nicht 0.
+- **Grund:** Qualitätssignal für das Pack, ohne die Akte mit Fehlversuchen zu füllen.
+- **Datum:** 07.10.2026
+
+## E-23 Ein Job speichert genau einmal
+
+- **Entscheidung:** Run-Record, Patch und ggf. Change Request entstehen im Speicher; gespeichert wird
+  einmal am Ende mit der erwarteten Revision. Jeder Fehler lässt die Akte unverändert. Ein Job, dessen
+  run_id schon in der Akte steht, gilt als erledigt (Idempotenz bei Wiederholung).
+- **Datum:** 07.10.2026
+
+## E-24 Entwicklungsanmeldung per Header, nie in production
+
+- **Entscheidung:** Bis zur echten Anmeldung (Phase 4) nimmt die API den Akteur aus dem Header
+  `x-speedboat-actor`, nur mit `SPEEDBOAT_DEV_AUTH=1`; sonst 401. Akteure der API sind immer
+  `kind = human`. Mit `SPEEDBOAT_DEV_AUTH=1` und `NODE_ENV=production` verweigert der Server den Start.
+- **Datum:** 07.10.2026
+
+## E-25 MCP-Server ohne eigene Logik
+
+- **Entscheidung:** Fünf Werkzeuge (`create_case`, `get_case`, `next_allowed_steps`, `run_block`,
+  `get_run`), jedes genau ein API-Aufruf. Der Akteur kommt aus der Konfiguration
+  (`SPEEDBOAT_DEV_ACTOR`, Standard: lokaler Entwicklungsnutzer).
+- **Datum:** 07.10.2026
+
+## E-26 Kein Test ruft die echte Modell-API
+
+- **Entscheidung:** Alle Tests nutzen den Fake-Adapter. Zusätzlich sperrt `vitest.setup.ts` jeden
+  `fetch` an `anthropic.com`. Das Live-Skript (`pnpm demo:live`) läuft nur manuell und verweigert
+  den Start in CI.
+- **Datum:** 07.10.2026
+
+## E-27 Domänenfrei sind alle Pakete
+
+- **Entscheidung:** Der Domänen-Test prüft alle Pakete unter `packages/` (core, adapters, runtime,
+  api, mcp), nicht nur `core`.
+- **Datum:** 07.10.2026
+
+## E-28 API und Worker in einem Prozess
+
+- **Entscheidung:** In Phase 1 starten API und pg-boss-Worker im selben Prozess (`server.ts`).
+  Trennen lässt sich das später, ohne Code in Kern oder Runtime zu ändern.
+- **Datum:** 07.10.2026
+
+## E-29 Paketverwaltung
+
+- **Entscheidung:** pnpm hat `@anthropic-ai/sdk@0.132.0` in `minimumReleaseAgeExclude` eingetragen,
+  weil die Version jünger als das Mindestalter für Releases war; die Ausnahme gilt nur für diese
+  Version. `esbuild` (für `tsx`) läuft ohne Build-Skript, die Binärdatei kommt als Plattformpaket.
+- **Datum:** 07.10.2026
+
+---
+
 # Regeln für Pack-Autoren
 
 - **R-01 Getrennte Provenienz heißt eigenes Objekt.** Provenienz gilt pro Objekt. Was eine
@@ -160,3 +290,11 @@ eine geänderte Entscheidung bekommt einen neuen Eintrag, der den alten nennt.
 - **R-03 Kritiker sehen nur, was im Vertrag steht.** Soll ein Kritiker die Provenienz sehen,
   muss sein `input` das ganze Objekt oder `/_provenance` enthalten.
 - **R-04 Gates brauchen einen Reviewer.** Ein Pack mit Gates vergibt die Rolle `reviewer`.
+- **R-05 Modell-Bausteine brauchen einen Skill-Text.** Jeder `extract`-, `generate`- und
+  `critic`-Baustein verweist per `skill` auf eine Markdown-Datei im Pack und nennt einen
+  `model_hint`, der in `config/models.json` steht.
+- **R-06 Generatoren sagen, was sie schreiben.** `generate` und `extract` brauchen `writes` und
+  `actor_roles`; die Rollen müssen die `write_roles` des Zieltyps treffen.
+- **R-07 Schemas so eng wie möglich.** Die Modell-API sieht eine vereinfachte Fassung des Schemas;
+  Regeln wie `minLength` prüft erst der Kern. Was die API direkt erzwingen kann (z. B. `enum` für
+  Marker im Ausgabeschema eines Kritikers), gehört deshalb ins Schema.

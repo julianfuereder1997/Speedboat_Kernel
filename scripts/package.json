@@ -1,0 +1,13 @@
+{
+  "name": "@speedboat/scripts",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "demo:live": "tsx live-demo.ts"
+  },
+  "dependencies": {
+    "@speedboat/api": "workspace:*"
+  }
+}

@@ -17,6 +17,7 @@ export const RunInput = z
     revision: z.number().int().nonnegative(),
     input_paths: z.array(InputPath),
     output: Json,
+    requested_by: Id.optional(),
   })
   .strict();
 export type RunInput = z.infer<typeof RunInput>;
@@ -90,6 +91,7 @@ export function record_run(state: CaseState, runInput: RunInput, actorInput: Act
     input_paths: run.input_paths,
     output: run.output,
   };
+  if (run.requested_by !== undefined) record.requested_by = run.requested_by;
   const next = commit(state, actor, at, { action: "record_run", ref: run.run_id, paths: [] }, (d) => {
     d.runs.push(record);
   });

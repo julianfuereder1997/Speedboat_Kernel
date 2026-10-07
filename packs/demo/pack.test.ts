@@ -113,7 +113,8 @@ describe("Demo-Pack: Ablauf durch den Kern", () => {
       input_paths: criticCtx.input_paths,
       output: { findings: [{ marker, target: "/objects/candidate/c2" }] },
     });
-    expect(record_run(s, criticRun("run-crit-1", "boring"), critic, pack, opts)).toMatchObject({ status: "REJECTED", code: "UNKNOWN_MARKER" });
+    // Das Ausgabeschema des Kritikers erlaubt nur die Marker des Packs; die Markerprüfung des Kerns steht dahinter.
+    expect(record_run(s, criticRun("run-crit-1", "boring"), critic, pack, opts)).toMatchObject({ status: "REJECTED", code: "SCHEMA_VIOLATION" });
     expect(record_run(s, criticRun("run-gen-1", "too_generic"), critic, pack, opts)).toMatchObject({ status: "REJECTED", code: "DUPLICATE_RUN_ID" });
     s = ok(record_run(s, criticRun("run-crit-1", "too_generic"), critic, pack, opts));
 

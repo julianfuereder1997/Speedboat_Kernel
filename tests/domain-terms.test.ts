@@ -4,9 +4,10 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
-const CORE = join(ROOT, "packages/core");
+const PACKAGES = join(ROOT, "packages");
+const PACKAGE_DIRS = readdirSync(PACKAGES, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => join(PACKAGES, d.name));
 
-/** Domänenbegriffe, die in packages/core nie vorkommen dürfen (siehe CLAUDE.md). */
+/** Domänenbegriffe, die in packages/ nie vorkommen dürfen (siehe CLAUDE.md; MCP, API und Runtime ebenso). */
 const FORBIDDEN: Array<{ term: string; pattern: RegExp }> = [
   { term: "FFG", pattern: /(?<![a-z])ffg(?![a-z])/i },
   { term: "Förder", pattern: /f(ö|oe)rder/i },
@@ -29,10 +30,14 @@ function filesUnder(dir: string): string[] {
   });
 }
 
-describe("packages/core ist domänenfrei", () => {
+describe("packages/ ist domänenfrei", () => {
+  it("prüft alle Pakete, mindestens core, adapters, runtime, api und mcp", () => {
+    expect(PACKAGE_DIRS.map((d) => relative(PACKAGES, d)).sort()).toEqual(expect.arrayContaining(["adapters", "api", "core", "mcp", "runtime"]));
+  });
+
   it("enthält keinen Domänenbegriff", () => {
-    const files = filesUnder(CORE);
-    expect(files.length).toBeGreaterThan(10);
+    const files = PACKAGE_DIRS.flatMap(filesUnder);
+    expect(files.length).toBeGreaterThan(50);
     const hits = files.flatMap((file) =>
       readFileSync(file, "utf8")
         .split("\n")

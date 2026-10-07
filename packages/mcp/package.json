@@ -1,0 +1,20 @@
+{
+  "name": "@speedboat/mcp",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "start": "tsx src/main.ts"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.1",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@speedboat/adapters": "workspace:*",
+    "@speedboat/api": "workspace:*",
+    "@speedboat/runtime": "workspace:*"
+  }
+}

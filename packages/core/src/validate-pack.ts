@@ -1,5 +1,6 @@
 import { schemaError } from "./json-schema.js";
 import { REVIEWER_ROLE } from "./schemas/common.js";
+import { MODEL_BLOCK_TYPES } from "./schemas/contract.js";
 import { Pack } from "./schemas/pack.js";
 
 export type PackIssue = { code: string; at: string; message: string };
@@ -76,6 +77,30 @@ export function inspect_pack(input: unknown): PackValidation & { pack?: Pack } {
     if (b.type === "critic") {
       if (!b.markers || b.markers.length === 0) error("CRITIC_WITHOUT_MARKERS", `${at}.markers`, `Kritiker ${b.block} hat keine Marker`);
       if (b.isolation !== "fresh_context") error("CRITIC_NOT_ISOLATED", `${at}.isolation`, `Kritiker ${b.block} muss fresh_context haben`);
+    }
+    if (MODEL_BLOCK_TYPES.includes(b.type) && b.skill === undefined) {
+      error("MISSING_SKILL", `${at}.skill`, `${b.block} ist ein Modell-Baustein und braucht einen Skill-Text`);
+    }
+    if (b.skill !== undefined) {
+      const parts = b.skill.split("/");
+      if (b.skill.startsWith("/") || parts.includes("..") || parts.includes("") || !b.skill.endsWith(".md")) {
+        error("INVALID_SKILL_PATH", `${at}.skill`, `${b.skill}: relativer Pfad zu einer .md-Datei im Pack erwartet`);
+      }
+    }
+    const writesExpected = b.type === "generate" || b.type === "extract";
+    if (writesExpected && b.writes === undefined) error("MISSING_WRITES", `${at}.writes`, `${b.block} braucht writes`);
+    if (!writesExpected && b.writes !== undefined) error("WRITES_NOT_ALLOWED", `${at}.writes`, `${b.type} schreibt keine Objekte`);
+    if (b.writes) {
+      if (!Object.hasOwn(pack.object_types, b.writes.object_type)) {
+        error("UNKNOWN_OBJECT_TYPE", `${at}.writes`, `Objekttyp ${b.writes.object_type} ist im Pack nicht definiert`);
+      }
+      if (b.writes.provenance !== undefined && !pack.provenance_values.includes(b.writes.provenance)) {
+        error("INVALID_PROVENANCE", `${at}.writes`, `Provenienz ${b.writes.provenance} ist im Pack nicht definiert`);
+      }
+    }
+    for (const role of b.actor_roles ?? []) {
+      if (!roles.has(role)) error("UNKNOWN_ROLE", `${at}.actor_roles`, `Rolle ${role} ist im Pack nicht definiert`);
+      if (role === REVIEWER_ROLE) error("BLOCK_WITH_REVIEWER_ROLE", `${at}.actor_roles`, `Bausteine bekommen nie die Rolle ${REVIEWER_ROLE}`);
     }
     for (const m of b.markers ?? []) {
       if (!markers.has(m)) error("UNKNOWN_MARKER", `${at}.markers`, `Marker ${m} ist im Pack nicht definiert`);
