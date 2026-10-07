@@ -273,9 +273,25 @@ eine geänderte Entscheidung bekommt einen neuen Eintrag, der den alten nennt.
 
 ## E-29 Paketverwaltung
 
-- **Entscheidung:** pnpm hat `@anthropic-ai/sdk@0.132.0` in `minimumReleaseAgeExclude` eingetragen,
-  weil die Version jünger als das Mindestalter für Releases war; die Ausnahme gilt nur für diese
-  Version. `esbuild` (für `tsx`) läuft ohne Build-Skript, die Binärdatei kommt als Plattformpaket.
+- **Entscheidung:** `@anthropic-ai/sdk` steht auf `^0.131.0`. Diese Version erfüllt das
+  Mindestalter für Releases von pnpm und unterstützt alles, was der Adapter nutzt
+  (`output_config.format` mit JSON Schema, `stop_details`, `fallbacks: "default"`).
+  Es gibt keine Ausnahme in `minimumReleaseAgeExclude`. `esbuild` (für `tsx`) läuft ohne
+  Build-Skript, die Binärdatei kommt als Plattformpaket.
+- **Ersetzt:** Die Ausnahme für `@anthropic-ai/sdk@0.132.0` (erschienen am selben Tag) aus der
+  ersten Fassung dieses Eintrags.
+- **Grund:** Die Lieferkettensperre von pnpm soll ohne Ausnahmen gelten.
+- **Datum:** 07.10.2026
+
+## E-30 Eigene Testdatenbank
+
+- **Entscheidung:** Tests schreiben nie in die Entwicklungsdatenbank. Sie nutzen nur
+  `TEST_DATABASE_URL` (lokal und in CI: `speedboat_test`). `vitest.setup.ts` verwirft ein
+  `DATABASE_URL` aus der Entwicklungsumgebung und bricht den Testlauf ab, wenn der Name der
+  Testdatenbank nicht auf `_test` endet. `docker-compose` legt `speedboat_test` bei einem frischen
+  Volume an; für bestehende Volumes gibt es `pnpm db:test`.
+- **Grund:** Entwicklungsdaten und Testdaten bleiben getrennt; ein falsch gesetztes `DATABASE_URL`
+  kann keine Testtabellen in der Entwicklungsdatenbank erzeugen.
 - **Datum:** 07.10.2026
 
 ---

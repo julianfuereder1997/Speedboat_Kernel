@@ -11,7 +11,8 @@
     "typecheck": "pnpm -r typecheck",
     "db:up": "docker compose up -d",
     "db:down": "docker compose down",
-    "demo:live": "pnpm --filter @speedboat/scripts demo:live"
+    "demo:live": "pnpm --filter @speedboat/scripts demo:live",
+    "db:test": "docker compose exec -T postgres sh -c 'psql -U \"$POSTGRES_USER\" -d postgres -tAc \"SELECT 1 FROM pg_database WHERE datname = '\\''speedboat_test'\\''\" | grep -q 1 || createdb -U \"$POSTGRES_USER\" speedboat_test'"
   },
   "devDependencies": {
     "@types/node": "^22.20.5",

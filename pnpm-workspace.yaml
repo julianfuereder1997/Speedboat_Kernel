@@ -6,6 +6,3 @@ packages:
 allowBuilds:
   # Die Binärdatei kommt über @esbuild/<plattform>; kein Build-Skript nötig.
   esbuild: false
-minimumReleaseAgeExclude:
-  # Von pnpm beim Installieren eingetragen: Version jünger als das Mindestalter für Releases.
-  - '@anthropic-ai/sdk@0.132.0'
