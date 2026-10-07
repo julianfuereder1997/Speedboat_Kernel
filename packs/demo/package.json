@@ -1,14 +1,13 @@
 {
-  "name": "@speedboat/core",
-  "version": "0.0.0",
+  "name": "@speedboat/pack-demo",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
-  "exports": "./src/index.ts",
+  "files": ["pack.json"],
   "scripts": {
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "ajv": "^8.20.0",
-    "zod": "^4.6.5"
+    "@speedboat/core": "workspace:*"
   }
 }

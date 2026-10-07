@@ -1,0 +1,103 @@
+{
+  "pack": "demo-naming",
+  "version": "0.1.0",
+  "object_types": {
+    "brief": {
+      "schema": {
+        "type": "object",
+        "required": ["product", "audience"],
+        "properties": {
+          "product": { "type": "string", "minLength": 1 },
+          "audience": { "type": "string", "minLength": 1 }
+        },
+        "additionalProperties": false
+      },
+      "write_roles": ["editor"],
+      "requires_provenance": true
+    },
+    "candidate": {
+      "schema": {
+        "type": "object",
+        "required": ["name", "rationale"],
+        "properties": {
+          "name": { "type": "string", "minLength": 1 },
+          "rationale": { "type": "string" }
+        },
+        "additionalProperties": false
+      },
+      "write_roles": ["editor", "generator"]
+    }
+  },
+  "blocks": [
+    {
+      "block": "propose-names",
+      "type": "generate",
+      "input": ["/objects/brief"],
+      "output_schema": {
+        "type": "object",
+        "required": ["candidates"],
+        "properties": {
+          "candidates": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "required": ["name", "rationale"],
+              "properties": { "name": { "type": "string" }, "rationale": { "type": "string" } }
+            }
+          }
+        }
+      },
+      "isolation": "shared"
+    },
+    {
+      "block": "challenge-names",
+      "type": "critic",
+      "input": ["/objects/brief", "/objects/candidate/*/name"],
+      "output_schema": {
+        "type": "object",
+        "required": ["findings"],
+        "properties": {
+          "findings": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["marker", "target"],
+              "properties": {
+                "marker": { "type": "string" },
+                "target": { "type": "string" },
+                "note": { "type": "string" }
+              }
+            }
+          }
+        }
+      },
+      "markers": ["too_generic", "hard_to_pronounce"],
+      "bias": "skeptical_customer",
+      "isolation": "fresh_context"
+    }
+  ],
+  "dependencies": {
+    "propose-names": [],
+    "challenge-names": ["propose-names"]
+  },
+  "gates": {
+    "name-review": {
+      "requires": ["propose-names", "challenge-names"],
+      "checks": [],
+      "decisions": ["approve", "revise"]
+    }
+  },
+  "bias_profiles": {
+    "skeptical_customer": {
+      "perspective": "A first-time buyer who has never heard of the product.",
+      "rules": ["Reject names that could describe any product in the category."]
+    }
+  },
+  "markers": [
+    { "id": "too_generic", "description": "The name could belong to any competitor." },
+    { "id": "hard_to_pronounce", "description": "The audience is unlikely to say the name correctly on first read." }
+  ],
+  "roles": ["editor", "generator", "reviewer"],
+  "provenance_values": ["USER_INPUT", "ASSUMED"]
+}
