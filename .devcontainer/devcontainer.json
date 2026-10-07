@@ -8,7 +8,10 @@
     "COREPACK_ENABLE_DOWNLOAD_PROMPT": "0"
   },
   "forwardPorts": [5432],
-  "postCreateCommand": "corepack enable && pnpm install",
+  "remoteEnv": {
+    "PATH": "${containerEnv:PATH}:/home/node/.local/bin"
+  },
+  "postCreateCommand": "corepack enable && pnpm install; curl -fsSL https://claude.ai/install.sh | bash",
   "customizations": {
     "vscode": {
       "extensions": ["vitest.explorer"]
