@@ -1,0 +1,13 @@
+{
+  "name": "@speedboat/tests",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@speedboat/core": "workspace:*",
+    "zod": "^4.6.5"
+  }
+}

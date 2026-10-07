@@ -1,0 +1,17 @@
+# Abhängigkeiten und Build
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+
+# Umgebung – nur .env.example gehört ins Repository
+.env
+.env.*
+!.env.example
+
+# Testunterlagen – dürfen NIE ins Repository
+testcases/
+
+# Logs und System
+*.log
+.DS_Store

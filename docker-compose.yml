@@ -1,0 +1,20 @@
+# Nur für die lokale Entwicklung. Werte kommen aus .env (Vorlage: .env.example).
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-speedboat}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-speedboat_dev}
+      POSTGRES_DB: ${POSTGRES_DB:-speedboat}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  pgdata:
